@@ -101,6 +101,18 @@ class DataPreprocessor:
     def __init__(self, data):
         self.data = data
 
+    def remove_negative_sign(self, X):
+        """
+        Removes negative sign from numerical data.
+        """
+        X_copy = X.copy()
+        if isinstance(X_copy, pd.Series):
+            X_copy = X_copy.to_numpy().reshape(-1, 1)
+        for i in range(X_copy.shape[1]):
+            if np.issubdtype(X_copy[:, i].dtype, np.number):
+                X_copy[:, i] = np.abs(X_copy[:, i])
+        return X_copy
+
     def scale_features(self, data, columns, method='standardization'):
         """
         Scales or normalizes the features of a DataFrame.
@@ -288,12 +300,16 @@ class DataPreprocessor:
 
 """#Instantiate Preprocessor"""
 
-preprocessor = DataPreprocessor()
+preprocessor = DataPreprocessor(data)
 
 """#Treating Data with preprocessor class
 
-##Price
+## remove minus values in sold price
 """
+
+data['sold_price'] = preprocessor.remove_negative_sign(data['sold_price'])
+
+"""##Price"""
 
 preprocessor.round_floats(data, 'sold_price')
 
@@ -395,11 +411,11 @@ data_scaled = preprocessor.scale_features(data, columns_to_scale)
 
 """#Check for outliers start"""
 
-data.info()
+data_scaled.info()
 
 """##Correlation Matrix prior to removing outliers"""
 
-data_processor = DataPreprocessor(data)
+data_processor = DataPreprocessor(data_scaled)
 
 data_processor.display_correlation_matrix(columns_to_check)
 
@@ -412,6 +428,183 @@ data_no_outliers = preprocessor.remove_outliers(data_scaled, columns_to_check, t
 data_processor = DataPreprocessor(data_no_outliers)
 
 data_processor.display_correlation_matrix(columns_to_scale)
+
+print(data_no_outliers.info())
+
+"""#Split the data in to train and test sets"""
+
+import random
+import matplotlib.pyplot as plt
+
+#import random
+#import matplotlib.pyplot as plt
+
+def split_data(data_clean, train_pct):
+    """
+    Splits the data into training and testing sets.
+
+    Parameters:
+    - data: Pandas DataFrame containing the data.
+    - train_pct: percentage of data to use for training (between 0 and 1).
+
+    Returns:
+    - tuple containing the training set and testing set as Pandas DataFrames.
+    """
+    # Shuffle the indices of the data
+    indices = list(data_clean.index)
+    random.shuffle(indices)
+
+    # Split the indices into training and testing sets
+    train_size = int(len(data_clean) * train_pct)
+    train_indices = indices[:train_size]
+    test_indices = indices[train_size:]
+
+    # Split the data into training and testing sets using the indices
+    train_data = data_clean.loc[train_indices]
+    test_data = data_clean.loc[test_indices]
+
+    return train_data, test_data
+
+class MVLinearRegression():
+    def fit(self, X, y, eta=1e-3, epochs=1e3, show_curve=False):
+        self.D = X.shape[1]
+        epochs = int(epochs)
+        N, D = X.shape
+        self.D = D
+        Y = y
+
+        # Initialise the weights
+        self.W = np.random.randn(D)
+
+        J = np.zeros(epochs)
+
+        for epoch in range(epochs):
+            Y_hat = self.predict(X)
+            J[epoch] = self.OLS(Y, Y_hat, N)
+            # weight update Rule:
+            self.W -= eta * (1/N) * (X.T @ (Y_hat - Y))
+
+        if show_curve:
+            plt.figure()
+            plt.plot(J)
+            plt.xlabel("epochs")
+            plt.ylabel("$\mathcal{J}$")
+            plt.title("Training Curve")
+            plt.show()
+
+    def predict(self, X, renovation_cost=0):
+        if X.shape[1] != self.D:
+            raise ValueError(f"Expected input matrix with {self.D} columns, but got {X.shape[1]}")
+        return (X @ self.W) + renovation_cost
+
+    def OLS(self, y, y_hat, n):
+        return (1/n) * np.sum((y - y_hat)**2)
+
+# Split the data into training and testing sets
+train_data, test_data = split_data(data_no_outliers, 0.8)
+
+myreg = MVLinearRegression()
+
+# Select the 10 columns we want to use for training and testing
+selected_cols = ['sold_price', 'lot_acres', 'taxes', 'year_built', 'sqrt_ft', 'fireplaces', 'floor_covering_values', 'bathrooms', 'bedrooms', 'garage']
+train_data_selected = train_data[selected_cols]
+test_data_selected = test_data[selected_cols]
+
+# Separate the features and target variables for training and testing data
+X_train = train_data_selected.drop('sold_price', axis=1).values
+y_train = train_data_selected['sold_price'].values
+X_test = test_data[selected_cols].values
+y_test = test_data['sold_price'].values
+
+# Train the model
+myreg.fit(X_train, y_train, show_curve=True)
+
+# Remove outliers from the input data
+renovation_cost = 50000
+X_test_renovated = X_test.copy()  # make a copy of the test data
+X_test_renovated[0, -1] = 1  # set the renovated feature to 1 for the first property
+X_test = np.array([[2, 3, 2000, 3, 2, 3, 100, 1, 1, 1]])
+
+# Remove outliers from the input data
+renovation_cost = 50000
+X_test[0, -1] = 1  # set the renovated feature to 1 for the first property
+
+# Remove the renovated feature column
+X_test = X_test[:, :-1]
+
+# Make a prediction for a property with renovations
+predicted_price_with_renovations = myreg.predict(X_test, renovation_cost)
+
+print(f"The predicted price for the first property with renovations is ${float(predicted_price_with_renovations):,.2f}")
+
+# Define the renovation description
+renovation_description = "kitchen and bathroom remodel"
+
+# Add a column for price after renovations
+test_data_selected['price_after_renovations'] = np.nan
+
+# Populate the price_after_renovations column with the new total cost of the house projected
+for i, row in test_data_selected.iterrows():
+    X_test = row[selected_cols[:-1]].values.reshape(1, -1)
+    predicted_price_with_renovations = myreg.predict(X_test, renovation_cost)
+    test_data_selected.at[i, 'price_after_renovations'] = predicted_price_with_renovations
+
+np.random.seed(42) # Set random seed for reproducibility
+sample_data = None
+
+# Loop until sample_data contains 3 houses with sold_price > 0
+while sample_data is None or (sample_data['sold_price'] <= 0).sum() > len(sample_data) - 3:
+    sample_indices = np.random.choice(test_data_selected.index, size=3, replace=False)
+    sample_data = test_data_selected.loc[sample_indices]
+
+house1 = sample_data.iloc[0]
+house2 = sample_data.iloc[1]
+house3 = sample_data.iloc[2]
+
+sold_price = sample_data['sold_price'].values
+
+fig, ax = plt.subplots(figsize=(6,4))
+
+# Bar plot for original sold prices (green)
+ax.bar(np.arange(len(sample_data)) - 0.2, sold_price, width=0.4, color='g', label='Sold Price')
+
+ax.set_xticks(np.arange(len(sample_data)))
+ax.set_xticklabels(['House ' + str(i+1) for i in range(len(sample_data))])
+ax.set_ylabel('Price')
+ax.set_title('Sold Prices of Sample Houses')
+ax.set_ylim(bottom=0) # Set lower y-limit to zero
+ax.legend()
+
+plt.show()
+
+np.random.seed(42) # Set random seed for reproducibility
+sample_data = None
+
+# Loop until sample_data contains 3 houses with sold_price > 0
+while sample_data is None or (sample_data['sold_price'] <= 0).sum() > len(sample_data) - 3:
+    sample_indices = np.random.choice(test_data_selected.index, size=3, replace=False)
+    sample_data = test_data_selected.loc[sample_indices]
+
+# Get price after renovations for house1, house2, and house3
+house1 = sample_data.iloc[0]['price_after_renovations']
+house2 = sample_data.iloc[1]['price_after_renovations']
+house3 = sample_data.iloc[2]['price_after_renovations']
+
+price_after_renovations = [house1, house2, house3]
+
+fig, ax = plt.subplots(figsize=(6,4))
+
+# Bar plot for price after renovations (red)
+ax.bar(np.arange(len(price_after_renovations)) - 0.2, price_after_renovations, width=0.4, color='r', label='Price after Renovations')
+
+ax.set_xticks(np.arange(len(price_after_renovations)))
+ax.set_xticklabels(['House 1', 'House 2', 'House 3'])
+ax.set_ylabel('Price')
+ax.set_title('Price After Renovations of Sample Houses')
+ax.set_ylim(bottom=0) # Set lower y-limit to zero
+ax.legend()
+
+plt.show()
 
 """#Class example"""
 
