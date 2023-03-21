@@ -563,17 +563,36 @@ house3 = sample_data.iloc[2]
 
 sold_price = sample_data['sold_price'].values
 
-fig, ax = plt.subplots(figsize=(6,4))
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12,4))
 
 # Bar plot for original sold prices (green)
-ax.bar(np.arange(len(sample_data)) - 0.2, sold_price, width=0.4, color='g', label='Sold Price')
+axs[0].bar(np.arange(len(sample_data)), sold_price, width=0.4, color='g', label='Sold Price')
 
-ax.set_xticks(np.arange(len(sample_data)))
-ax.set_xticklabels(['House ' + str(i+1) for i in range(len(sample_data))])
-ax.set_ylabel('Price')
-ax.set_title('Sold Prices of Sample Houses')
-ax.set_ylim(bottom=0) # Set lower y-limit to zero
-ax.legend()
+axs[0].set_xticks(np.arange(len(sample_data)))
+axs[0].set_xticklabels(['House ' + str(i+1) for i in range(len(sample_data))])
+axs[0].set_ylabel('Price')
+axs[0].set_title('Sold Prices of Sample Houses')
+axs[0].set_ylim(bottom=0, top=sold_price.max() * 3) # Set upper y-limit to 3 times the max sold price
+axs[0].legend()
+
+axs[1].set_xlim(axs[0].get_xlim()) # Set the x-axis limits of the second plot to be the same as the first plot
+
+# Get price after renovations for house1, house2, and house3
+house1 = sample_data.iloc[0]['price_after_renovations']
+house2 = sample_data.iloc[1]['price_after_renovations']
+house3 = sample_data.iloc[2]['price_after_renovations']
+
+price_after_renovations = [house1, house2, house3]
+
+# Bar plot for price after renovations (red)
+axs[1].bar(np.arange(len(price_after_renovations)), price_after_renovations, width=0.4, color='r', label='Price after Renovations')
+
+axs[1].set_xticks(np.arange(len(price_after_renovations)))
+axs[1].set_xticklabels(['House 1', 'House 2', 'House 3'])
+axs[1].set_ylabel('Price')
+axs[1].set_title('Price After Renovations of Sample Houses')
+axs[1].set_ylim(bottom=0, top=max(price_after_renovations) * 3) # Set upper y-limit to 3 times the max price after renovations
+axs[1].legend()
 
 plt.show()
 
@@ -606,7 +625,10 @@ ax.legend()
 
 plt.show()
 
-"""#Class example"""
+"""#Comparison of the changes in data
+
+#Class example
+"""
 
 from geopy import Nominatim
 
@@ -726,3 +748,7 @@ print("Latitude: {}, Longitude: {}".format(location.point.latitude, location.poi
 
 # Show the plot
 #plt.show()
+
+# Commented out IPython magic to ensure Python compatibility.
+# %%shell
+# jupyter nbconvert --to html /content/HouseLinReg_Price_Renovations.ipynb
