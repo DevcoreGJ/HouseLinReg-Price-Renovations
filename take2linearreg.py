@@ -483,17 +483,10 @@ new_data = new_data[:, :-1]
 K = 3
 sale_price_knn = knn.predict(new_Xknn, K)
 
-"""** Bedroom and bathroom prediction (refactoring) **"""
+"""** Bedroom and bathroom prediction (refactoring) **
 
-# Make predictions
-y_hat_lr = lr.predict(new_X)
-y_hat_knn = knn.predict(new_Xknn, K)
-
-# Compute the accuracy of the model
-acc_lr = np.sqrt(np.mean((y_hat_lr -y_lr )**2))
-#acc_knn = np.sqrt(np.mean((y_hat_knn - y_knn )**2))
-
-"""##retrieving the data"""
+##retrieving the data
+"""
 
 # Create a new data point with the user input
 bedrooms = int(input("Enter the number of bedrooms: "))
@@ -535,10 +528,65 @@ total_price_after_renovations = float(price_after_renovations_lr[0]) + float(pri
 
 print(f"The estimated price after renovations for a {bedrooms}-bedroom and {bathrooms}-bathroom house is ${float(price_after_renovations_lr[0]):.2f} (Linear Regression) and ${float(price_after_renovations_knn[0]):.2f} (KNN Regression), with a total of ${total_price_after_renovations:.2f} after renovations.")
 
-"""predict the new renovated house value
+"""predict the new renovated house value"""
 
-#bathroom entry and prediction (deprecated)
-"""
+#import pandas as pd
+#from sklearn.neighbors import KNeighborsRegressor
+#from sklearn.linear_model import LinearRegression
+
+# Select a random row from the dataset with the same number of bedrooms and bathrooms as the new data point
+bedrooms = 4
+bathrooms = 4
+sample_data = data[(data['bedrooms'] == bedrooms) & (data['bathrooms'] == bathrooms)].sample(n=1)
+
+# Extract the target value for the sample data
+y_true = sample_data['sold_price'].values[0]
+
+# Extract the features for the sample data
+X_sample = sample_data[cols_lr].values
+
+# Scale the features for the sample data
+X_sample_scaled = (X_sample - X_lr.min(axis=0)) / (X_lr.max(axis=0) - X_lr.min(axis=0))
+
+#Predict the price using Linear Regression for the sample data
+price_lr = lr.predict(X_sample_scaled.reshape(1, -1))
+
+#Predict the price using KNN Regression with K=3 for the sample data
+price_knn = knn.predict(X_sample.reshape(1, -1), K=3)
+
+#Calculate the average price for Linear Regression and KNN Regression
+price_avg = (price_lr[0] + price_knn[0]) / 2
+
+#Calculate the accuracy of the prediction for Linear Regression
+acc_lr = (1 - abs(price_lr[0] - y_true) / y_true) * 100
+
+#Calculate the accuracy of the prediction for KNN Regression
+acc_knn = (1 - abs(price_knn[0] - y_true) / y_true) * 100
+
+#Calculate the accuracy of the prediction for the average of Linear Regression and KNN Regression
+acc_avg = (1 - abs(price_avg - y_true) / y_true) * 100
+
+#Print the accuracy of the prediction for Linear Regression, KNN Regression, and the average of the two
+print(f"Linear Regression prediction accuracy: {acc_lr:.2f}%")
+print(f"KNN Regression prediction accuracy: {acc_knn:.2f}%")
+print(f"Average prediction accuracy: {acc_avg:.2f}%")
+
+# Calculate the predicted price for the sample data point using both linear regression and KNN regression
+sample_data_knn = sample_data[cols_knn].values
+y_pred_knn = knn.predict(sample_data_knn.reshape(1, -1), K=3)
+
+# Calculate the difference between the predicted and actual prices
+knn_diff = y_pred_knn[0] - y_true
+
+# Plot the difference in predicted price versus the actual price
+plt.scatter(y_true, knn_diff, label='KNN Regression')
+plt.axhline(y=0, color='black', linestyle='--')
+plt.xlabel('Actual Price')
+plt.ylabel('Difference in Predicted Price')
+plt.legend()
+plt.show()
+
+"""#bathroom entry and prediction (deprecated)"""
 
 # Scale the new data point
 #new_X_scaled = (new_X - X_lr.min(axis=0)) / (X_lr.max(axis=0) - X_lr.min(axis=0))
